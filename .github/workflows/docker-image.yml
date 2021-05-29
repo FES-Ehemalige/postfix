@@ -1,0 +1,44 @@
+name: Publish Docker image
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2.3.4
+
+      - name: Generate image tag
+        run: |
+          ALPINE_VERSION=$(head -n1 Dockerfile | sed 's/FROM alpine://')
+          ALPINE_BRANCH=${ALPINE_VERSION%.*}
+          curl --stderr - --silent -o tmp.html "https://pkgs.alpinelinux.org/packages?name=postfix&branch=v${ALPINE_BRANCH}&arch=x86_64"
+          POSTFIX_VERSION=$(grep '<td class="version">' tmp.html | sed -E 's:\s+<td class="version">(.+)</td>:\1:')
+          IMAGE_TAG="$POSTFIX_VERSION-alpine$ALPINE_VERSION"
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_ENV
+          echo "$IMAGE_TAG"
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v3
+        with:
+          images: quay.io/fesehemalige/postfix
+          tags: type=raw,${{ env.image_tag }}
+          flavor: latest=true
+      
+      - name: Login to Quay.io
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        uses: docker/login-action@v1 
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_IO_USERNAME }}
+          password: ${{ secrets.QUAY_IO_TOKEN }}
+      
+      - name: Push to Quay.io
+        uses: docker/build-push-action@v2
+        with:
+          push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
