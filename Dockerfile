@@ -1,4 +1,4 @@
-FROM alpine:3.17.2
+FROM alpine:3.18.0
 
 RUN set -ex && apk add --no-cache postfix postfix-mysql
 RUN set -ex && rm -fr /etc/postfix/master.cf
